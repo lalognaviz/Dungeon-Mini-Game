@@ -12,8 +12,8 @@ public class GameManager : MonoBehaviour
     public GameObject jugador2GO;
 
     [Header("Efectos de Partículas (VFX)")]
-    public ParticleSystem particulasMuertePrefab;  // Prefab o efecto de muerte (humo/sangre)
-    public ParticleSystem particulasRespawnPrefab; // Prefab o efecto de respawn (aparición mágica)
+    public ParticleSystem particulasMuertePrefab;
+    public ParticleSystem particulasRespawnPrefab;
 
     [Header("Elecciones de Jugadores")]
     public OpcionCombate eleccionJ1 = OpcionCombate.Ninguna;
@@ -57,6 +57,7 @@ public class GameManager : MonoBehaviour
     {
         if (!esperandoInput || juegoTerminado) return;
 
+        // 1. Manejo del Temporizador
         tiempoRestante -= Time.deltaTime;
 
         if (textoTemporizador != null)
@@ -65,32 +66,25 @@ public class GameManager : MonoBehaviour
             textoTemporizador.text = segundos.ToString();
         }
 
-        // Entrada Jugador 1 (A, S, D)
-        if (Keyboard.current != null && eleccionJ1 == OpcionCombate.Ninguna)
+        // 2. Detección de Teclado - Jugador 1 (A, S, D)
+        // Permite cambiar la elección la cantidad de veces que quiera durante el tiempo
+        if (Keyboard.current != null)
         {
             if (Keyboard.current.aKey.wasPressedThisFrame) RegistrarEleccion(1, OpcionCombate.Espada);
             else if (Keyboard.current.sKey.wasPressedThisFrame) RegistrarEleccion(1, OpcionCombate.Baculo);
             else if (Keyboard.current.dKey.wasPressedThisFrame) RegistrarEleccion(1, OpcionCombate.Escudo);
-        }
 
-        // Entrada Jugador 2 (J, K, L)
-        if (Keyboard.current != null && eleccionJ2 == OpcionCombate.Ninguna)
-        {
+            // Detección de Teclado - Jugador 2 (J, K, L)
             if (Keyboard.current.jKey.wasPressedThisFrame) RegistrarEleccion(2, OpcionCombate.Espada);
             else if (Keyboard.current.kKey.wasPressedThisFrame) RegistrarEleccion(2, OpcionCombate.Baculo);
             else if (Keyboard.current.lKey.wasPressedThisFrame) RegistrarEleccion(2, OpcionCombate.Escudo);
         }
 
-        if (eleccionJ1 != OpcionCombate.Ninguna && eleccionJ2 != OpcionCombate.Ninguna)
-        {
-            esperandoInput = false;
-            ResolverTurno();
-        }
-
+        // 3. El turno solo finaliza al agotarse el tiempo
         if (tiempoRestante <= 0f)
         {
             esperandoInput = false;
-            Debug.Log("⏱️ ¡SE AGOTÓ EL TIEMPO!");
+            Debug.Log("⏱️ ¡SE AGOTÓ EL TIEMPO! Se resuelven las armas seleccionadas.");
             ResolverTurno();
         }
     }
@@ -135,13 +129,21 @@ public class GameManager : MonoBehaviour
         tiempoRestante = duracionMaxTurno;
         esperandoInput = true;
 
-        Debug.Log("--- ⚔️ TURNO EN CURSO ⚔️ ---");
+        Debug.Log("--- ⚔️ TURNO EN CURSO: ¡Cambia tu arma hasta que el tiempo venza! ⚔️ ---");
     }
 
     private void RegistrarEleccion(int jugador, OpcionCombate eleccion)
     {
-        if (jugador == 1) eleccionJ1 = eleccion;
-        else if (jugador == 2) eleccionJ2 = eleccion;
+        if (jugador == 1)
+        {
+            eleccionJ1 = eleccion;
+            Debug.Log($"Jugador 1 cambió su elección a: {eleccionJ1}");
+        }
+        else if (jugador == 2)
+        {
+            eleccionJ2 = eleccion;
+            Debug.Log($"Jugador 2 cambió su elección a: {eleccionJ2}");
+        }
     }
 
     private void ResolverTurno()
@@ -150,22 +152,22 @@ public class GameManager : MonoBehaviour
 
         if (eleccionJ1 == OpcionCombate.Ninguna && eleccionJ2 == OpcionCombate.Ninguna)
         {
-            Debug.Log("💀 Ninguno eligió a tiempo.");
+            Debug.Log("💀 Ninguno eligió arma a tiempo.");
             ganadorTurno = 0;
         }
         else if (eleccionJ1 == OpcionCombate.Ninguna)
         {
-            Debug.Log("💀 J1 no eligió. ¡Punto para J2!");
+            Debug.Log("💀 J1 no eligió arma. ¡Punto para J2!");
             ganadorTurno = 2;
         }
         else if (eleccionJ2 == OpcionCombate.Ninguna)
         {
-            Debug.Log("💀 J2 no eligió. ¡Punto para J1!");
+            Debug.Log("💀 J2 no eligió arma. ¡Punto para J1!");
             ganadorTurno = 1;
         }
         else if (eleccionJ1 == eleccionJ2)
         {
-            Debug.Log("⚡ ¡EMPATE! Las armas chocan.");
+            Debug.Log($"⚡ ¡EMPATE! Ambos quedaron con {eleccionJ1}.");
             StartCoroutine(RutinaReiniciarTurno(1.5f));
             return;
         }
@@ -251,7 +253,6 @@ public class GameManager : MonoBehaviour
 
     private void RestablecerPersonajesActivos()
     {
-        // Si el personaje estaba inactivo, al reactivarse lanzamos las partículas de respawn
         if (jugador1GO != null && !jugador1GO.activeSelf)
         {
             jugador1GO.SetActive(true);
@@ -271,7 +272,6 @@ public class GameManager : MonoBehaviour
         {
             ParticleSystem vfx = Instantiate(efectoPrefab, posicion, Quaternion.identity);
             vfx.Play();
-            // Destruir la instancia automáticamente tras terminar la reproducción
             Destroy(vfx.gameObject, vfx.main.duration + vfx.main.startLifetime.constantMax);
         }
     }
