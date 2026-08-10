@@ -16,8 +16,8 @@ public class GameManager : MonoBehaviour
     public Animator animJ2;
 
     [Header("Placeholders de Armas (0:Espada, 1:Báculo, 2:Escudo)")]
-    public GameObject[] armasJ1; // Arrastrar los 3 objetos hijos de J1 aquí
-    public GameObject[] armasJ2; // Arrastrar los 3 objetos hijos de J2 aquí
+    public GameObject[] armasJ1; 
+    public GameObject[] armasJ2; 
 
     [Header("Efectos de Partículas (VFX)")]
     public ParticleSystem particulasMuertePrefab;
@@ -104,9 +104,8 @@ public class GameManager : MonoBehaviour
     {
         if (juegoTerminado) return;
 
-        RestablecerPersonajesActivos();
-        OcultarTodasLasArmas();
-
+        // Se eliminó de aquí la función RestablecerPersonajesActivos()
+        
         esperandoInput = false;
         eleccionJ1 = OpcionCombate.Ninguna;
         eleccionJ2 = OpcionCombate.Ninguna;
@@ -117,6 +116,11 @@ public class GameManager : MonoBehaviour
 
     private void IniciarNuevoTurno()
     {
+        // AGREGADO: El personaje revive y lanza las partículas exactamente al presionar el botón.
+        RestablecerPersonajesActivos();
+
+        OcultarTodasLasArmas(); 
+
         eleccionJ1 = OpcionCombate.Ninguna;
         eleccionJ2 = OpcionCombate.Ninguna;
         tiempoRestante = duracionMaxTurno;
@@ -152,7 +156,6 @@ public class GameManager : MonoBehaviour
 
     private void ResolverTurno()
     {
-        // Revelar visualmente las armas elegidas
         MostrarArma(1, eleccionJ1);
         MostrarArma(2, eleccionJ2);
 
@@ -175,7 +178,6 @@ public class GameManager : MonoBehaviour
             ganadorTurno = ganaJ1 ? 1 : 2;
         }
 
-        // Disparar Animaciones de Victoria/Derrota
         if (ganadorTurno == 1)
         {
             if (animJ1 != null) animJ1.SetTrigger("Atacar");
@@ -189,7 +191,6 @@ public class GameManager : MonoBehaviour
             victoriasRondaJ2++;
         }
 
-        // Desactivar al perdedor con un pequeño retraso para ver la animación
         StartCoroutine(RutinaDesactivarPerdedor(1.0f, ganadorTurno));
     }
 
@@ -224,8 +225,6 @@ public class GameManager : MonoBehaviour
         else StartCoroutine(RutinaRespawnYNuevoTurno(2f));
     }
 
-    // (El resto de las funciones: DesactivarPerdedor, RestablecerPersonajesActivos, GenerarEfectoVFX, EjecutarVictoriaGlobal, ReiniciarPartidaCompleta, ActualizarUI se mantienen exactamente iguales al script anterior)
-    
     private void DesactivarPerdedor(int numeroPerdedor)
     {
         if (numeroPerdedor == 1 && jugador1GO != null)
