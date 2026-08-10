@@ -7,9 +7,17 @@ public class GameManager : MonoBehaviour
 {
     public enum OpcionCombate { Ninguna, Espada, Baculo, Escudo }
 
-    [Header("Objetos de los Jugadores (3D / Sprites)")]
+    [Header("Objetos de los Jugadores")]
     public GameObject jugador1GO;
     public GameObject jugador2GO;
+
+    [Header("Animadores (Opcional para PoC)")]
+    public Animator animJ1;
+    public Animator animJ2;
+
+    [Header("Placeholders de Armas (0:Espada, 1:Báculo, 2:Escudo)")]
+    public GameObject[] armasJ1; // Arrastrar los 3 objetos hijos de J1 aquí
+    public GameObject[] armasJ2; // Arrastrar los 3 objetos hijos de J2 aquí
 
     [Header("Efectos de Partículas (VFX)")]
     public ParticleSystem particulasMuertePrefab;
@@ -42,12 +50,13 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI textoManaJ2;
     public GameObject botonIniciarTurnoUI;
 
-    [Header("UI - Pantalla de Victoria / Fatality")]
+    [Header("UI - Pantalla de Victoria")]
     public GameObject panelVictoriaUI;
     public TextMeshProUGUI textoGanadorUI;
 
     void Start()
     {
+        OcultarTodasLasArmas();
         ActualizarUI();
         if (panelVictoriaUI != null) panelVictoriaUI.SetActive(false);
         PrepararEsperarBoton();
@@ -57,7 +66,6 @@ public class GameManager : MonoBehaviour
     {
         if (!esperandoInput || juegoTerminado) return;
 
-        // 1. Manejo del Temporizador
         tiempoRestante -= Time.deltaTime;
 
         if (textoTemporizador != null)
@@ -66,25 +74,21 @@ public class GameManager : MonoBehaviour
             textoTemporizador.text = segundos.ToString();
         }
 
-        // 2. Detección de Teclado - Jugador 1 (A, S, D)
-        // Permite cambiar la elección la cantidad de veces que quiera durante el tiempo
         if (Keyboard.current != null)
         {
             if (Keyboard.current.aKey.wasPressedThisFrame) RegistrarEleccion(1, OpcionCombate.Espada);
             else if (Keyboard.current.sKey.wasPressedThisFrame) RegistrarEleccion(1, OpcionCombate.Baculo);
             else if (Keyboard.current.dKey.wasPressedThisFrame) RegistrarEleccion(1, OpcionCombate.Escudo);
 
-            // Detección de Teclado - Jugador 2 (J, K, L)
             if (Keyboard.current.jKey.wasPressedThisFrame) RegistrarEleccion(2, OpcionCombate.Espada);
             else if (Keyboard.current.kKey.wasPressedThisFrame) RegistrarEleccion(2, OpcionCombate.Baculo);
             else if (Keyboard.current.lKey.wasPressedThisFrame) RegistrarEleccion(2, OpcionCombate.Escudo);
         }
 
-        // 3. El turno solo finaliza al agotarse el tiempo
         if (tiempoRestante <= 0f)
         {
             esperandoInput = false;
-            Debug.Log("⏱️ ¡SE AGOTÓ EL TIEMPO! Se resuelven las armas seleccionadas.");
+            Debug.Log("⏱️ ¡TIEMPO AGOTADO! Revelando armas...");
             ResolverTurno();
         }
     }
@@ -92,12 +96,7 @@ public class GameManager : MonoBehaviour
     public void PresionarBotonIniciarTurno()
     {
         if (juegoTerminado) return;
-
-        if (botonIniciarTurnoUI != null)
-        {
-            botonIniciarTurnoUI.SetActive(false);
-        }
-
+        if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(false);
         IniciarNuevoTurno();
     }
 
@@ -106,20 +105,14 @@ public class GameManager : MonoBehaviour
         if (juegoTerminado) return;
 
         RestablecerPersonajesActivos();
+        OcultarTodasLasArmas();
 
         esperandoInput = false;
         eleccionJ1 = OpcionCombate.Ninguna;
         eleccionJ2 = OpcionCombate.Ninguna;
 
-        if (textoTemporizador != null)
-        {
-            textoTemporizador.text = Mathf.CeilToInt(duracionMaxTurno).ToString();
-        }
-
-        if (botonIniciarTurnoUI != null)
-        {
-            botonIniciarTurnoUI.SetActive(true);
-        }
+        if (textoTemporizador != null) textoTemporizador.text = Mathf.CeilToInt(duracionMaxTurno).ToString();
+        if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(true);
     }
 
     private void IniciarNuevoTurno()
@@ -128,46 +121,49 @@ public class GameManager : MonoBehaviour
         eleccionJ2 = OpcionCombate.Ninguna;
         tiempoRestante = duracionMaxTurno;
         esperandoInput = true;
-
-        Debug.Log("--- ⚔️ TURNO EN CURSO: ¡Cambia tu arma hasta que el tiempo venza! ⚔️ ---");
     }
 
     private void RegistrarEleccion(int jugador, OpcionCombate eleccion)
     {
-        if (jugador == 1)
+        if (jugador == 1) eleccionJ1 = eleccion;
+        else if (jugador == 2) eleccionJ2 = eleccion;
+    }
+
+    private void OcultarTodasLasArmas()
+    {
+        foreach (var arma in armasJ1) if (arma != null) arma.SetActive(false);
+        foreach (var arma in armasJ2) if (arma != null) arma.SetActive(false);
+    }
+
+    private void MostrarArma(int jugador, OpcionCombate eleccion)
+    {
+        GameObject[] arrayArmas = (jugador == 1) ? armasJ1 : armasJ2;
+        int indice = -1;
+
+        if (eleccion == OpcionCombate.Espada) indice = 0;
+        else if (eleccion == OpcionCombate.Baculo) indice = 1;
+        else if (eleccion == OpcionCombate.Escudo) indice = 2;
+
+        if (indice >= 0 && indice < arrayArmas.Length && arrayArmas[indice] != null)
         {
-            eleccionJ1 = eleccion;
-            Debug.Log($"Jugador 1 cambió su elección a: {eleccionJ1}");
-        }
-        else if (jugador == 2)
-        {
-            eleccionJ2 = eleccion;
-            Debug.Log($"Jugador 2 cambió su elección a: {eleccionJ2}");
+            arrayArmas[indice].SetActive(true);
         }
     }
 
     private void ResolverTurno()
     {
-        int ganadorTurno = 0; // 0 = NINGUNO, 1 = J1, 2 = J2
+        // Revelar visualmente las armas elegidas
+        MostrarArma(1, eleccionJ1);
+        MostrarArma(2, eleccionJ2);
 
-        if (eleccionJ1 == OpcionCombate.Ninguna && eleccionJ2 == OpcionCombate.Ninguna)
-        {
-            Debug.Log("💀 Ninguno eligió arma a tiempo.");
-            ganadorTurno = 0;
-        }
-        else if (eleccionJ1 == OpcionCombate.Ninguna)
-        {
-            Debug.Log("💀 J1 no eligió arma. ¡Punto para J2!");
-            ganadorTurno = 2;
-        }
-        else if (eleccionJ2 == OpcionCombate.Ninguna)
-        {
-            Debug.Log("💀 J2 no eligió arma. ¡Punto para J1!");
-            ganadorTurno = 1;
-        }
+        int ganadorTurno = 0; 
+
+        if (eleccionJ1 == OpcionCombate.Ninguna && eleccionJ2 == OpcionCombate.Ninguna) ganadorTurno = 0;
+        else if (eleccionJ1 == OpcionCombate.Ninguna) ganadorTurno = 2;
+        else if (eleccionJ2 == OpcionCombate.Ninguna) ganadorTurno = 1;
         else if (eleccionJ1 == eleccionJ2)
         {
-            Debug.Log($"⚡ ¡EMPATE! Ambos quedaron con {eleccionJ1}.");
+            Debug.Log($"⚡ ¡EMPATE!");
             StartCoroutine(RutinaReiniciarTurno(1.5f));
             return;
         }
@@ -176,27 +172,40 @@ public class GameManager : MonoBehaviour
             bool ganaJ1 = (eleccionJ1 == OpcionCombate.Escudo && eleccionJ2 == OpcionCombate.Espada) ||
                           (eleccionJ1 == OpcionCombate.Espada && eleccionJ2 == OpcionCombate.Baculo) ||
                           (eleccionJ1 == OpcionCombate.Baculo && eleccionJ2 == OpcionCombate.Escudo);
-
             ganadorTurno = ganaJ1 ? 1 : 2;
         }
 
+        // Disparar Animaciones de Victoria/Derrota
         if (ganadorTurno == 1)
         {
+            if (animJ1 != null) animJ1.SetTrigger("Atacar");
+            if (animJ2 != null) animJ2.SetTrigger("Morir");
             victoriasRondaJ1++;
-            DesactivarPerdedor(2);
         }
         else if (ganadorTurno == 2)
         {
+            if (animJ2 != null) animJ2.SetTrigger("Atacar");
+            if (animJ1 != null) animJ1.SetTrigger("Morir");
             victoriasRondaJ2++;
-            DesactivarPerdedor(1);
-        }
-        else if (ganadorTurno == 0)
-        {
-            DesactivarPerdedor(0);
         }
 
-        ActualizarUI();
+        // Desactivar al perdedor con un pequeño retraso para ver la animación
+        StartCoroutine(RutinaDesactivarPerdedor(1.0f, ganadorTurno));
+    }
 
+    private IEnumerator RutinaDesactivarPerdedor(float retraso, int ganadorTurno)
+    {
+        yield return new WaitForSeconds(retraso);
+
+        if (ganadorTurno == 1) DesactivarPerdedor(2);
+        else if (ganadorTurno == 2) DesactivarPerdedor(1);
+        else if (ganadorTurno == 0) DesactivarPerdedor(0);
+
+        EvaluarRondaYMana();
+    }
+
+    private void EvaluarRondaYMana()
+    {
         if (victoriasRondaJ1 >= metaVictoriasRonda)
         {
             manaJ1++;
@@ -210,20 +219,13 @@ public class GameManager : MonoBehaviour
 
         ActualizarUI();
 
-        if (manaJ1 >= metaManaPartida)
-        {
-            EjecutarVictoriaGlobal(1);
-            return;
-        }
-        else if (manaJ2 >= metaManaPartida)
-        {
-            EjecutarVictoriaGlobal(2);
-            return;
-        }
-
-        StartCoroutine(RutinaRespawnYNuevoTurno(2f));
+        if (manaJ1 >= metaManaPartida) EjecutarVictoriaGlobal(1);
+        else if (manaJ2 >= metaManaPartida) EjecutarVictoriaGlobal(2);
+        else StartCoroutine(RutinaRespawnYNuevoTurno(2f));
     }
 
+    // (El resto de las funciones: DesactivarPerdedor, RestablecerPersonajesActivos, GenerarEfectoVFX, EjecutarVictoriaGlobal, ReiniciarPartidaCompleta, ActualizarUI se mantienen exactamente iguales al script anterior)
+    
     private void DesactivarPerdedor(int numeroPerdedor)
     {
         if (numeroPerdedor == 1 && jugador1GO != null)
@@ -238,16 +240,8 @@ public class GameManager : MonoBehaviour
         }
         else if (numeroPerdedor == 0)
         {
-            if (jugador1GO != null)
-            {
-                GenerarEfectoVFX(particulasMuertePrefab, jugador1GO.transform.position);
-                jugador1GO.SetActive(false);
-            }
-            if (jugador2GO != null)
-            {
-                GenerarEfectoVFX(particulasMuertePrefab, jugador2GO.transform.position);
-                jugador2GO.SetActive(false);
-            }
+            if (jugador1GO != null) { GenerarEfectoVFX(particulasMuertePrefab, jugador1GO.transform.position); jugador1GO.SetActive(false); }
+            if (jugador2GO != null) { GenerarEfectoVFX(particulasMuertePrefab, jugador2GO.transform.position); jugador2GO.SetActive(false); }
         }
     }
 
@@ -256,12 +250,14 @@ public class GameManager : MonoBehaviour
         if (jugador1GO != null && !jugador1GO.activeSelf)
         {
             jugador1GO.SetActive(true);
+            if (animJ1 != null) animJ1.SetTrigger("Renacer");
             GenerarEfectoVFX(particulasRespawnPrefab, jugador1GO.transform.position);
         }
 
         if (jugador2GO != null && !jugador2GO.activeSelf)
         {
             jugador2GO.SetActive(true);
+            if (animJ2 != null) animJ2.SetTrigger("Renacer");
             GenerarEfectoVFX(particulasRespawnPrefab, jugador2GO.transform.position);
         }
     }
@@ -283,11 +279,7 @@ public class GameManager : MonoBehaviour
 
         if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(false);
         if (panelVictoriaUI != null) panelVictoriaUI.SetActive(true);
-
-        if (textoGanadorUI != null)
-        {
-            textoGanadorUI.text = $"¡FATALITY!\n¡JUGADOR {jugadorGanador} ES LIBERADO!";
-        }
+        if (textoGanadorUI != null) textoGanadorUI.text = $"¡FATALITY!\n¡JUGADOR {jugadorGanador} ES LIBERADO!";
     }
 
     public void ReiniciarPartidaCompleta()
