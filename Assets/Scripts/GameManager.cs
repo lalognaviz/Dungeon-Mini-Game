@@ -21,7 +21,6 @@ public class GameManager : MonoBehaviour
     public AudioClip musicaTurnoClip;
     public AudioClip sfxAtaque;
     public AudioClip sfxMuerte;
-    public AudioClip sfxBoton;
 
     [Header("Configuración de Duración Dinámica")]
     public float duracionMinimaTurno = 4f;
@@ -50,7 +49,6 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI textoRondaJ2;
     public TextMeshProUGUI textoManaJ1;
     public TextMeshProUGUI textoManaJ2;
-    public GameObject botonIniciarTurnoUI;
 
     [Header("UI - Pantalla de Victoria")]
     public GameObject panelVictoriaUI;
@@ -61,7 +59,9 @@ public class GameManager : MonoBehaviour
         ActualizarUI();
         if (panelVictoriaUI != null) panelVictoriaUI.SetActive(false);
         RestablecerAmbosAIdle();
-        PrepararEsperarBoton();
+        
+        // Da 1.5 segundos al iniciar el juego antes de lanzar el primer turno
+        StartCoroutine(RutinaIniciarNuevoTurno(1.5f)); 
     }
 
     void Update()
@@ -90,27 +90,10 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void PresionarBotonIniciarTurno()
-    {
-        if (juegoTerminado) return;
-        ReproducirSFX(sfxBoton);
-        if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(false);
-        IniciarNuevoTurno();
-    }
-
-    private void PrepararEsperarBoton()
-    {
-        if (juegoTerminado) return;
-
-        esperandoInput = false;
-        eleccionJ1 = OpcionCombate.Ninguna;
-        eleccionJ2 = OpcionCombate.Ninguna;
-
-        if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(true);
-    }
-
     private void IniciarNuevoTurno()
     {
+        if (juegoTerminado) return;
+
         RestablecerAmbosAIdle();
 
         eleccionJ1 = OpcionCombate.Ninguna;
@@ -124,7 +107,7 @@ public class GameManager : MonoBehaviour
         {
             musicaTurnoSource.clip = musicaTurnoClip;
             musicaTurnoSource.loop = false;
-            musicaTurnoSource.pitch = 1f; // Aseguramos que el audio siempre suene a velocidad normal
+            musicaTurnoSource.pitch = 1f; 
             musicaTurnoSource.Play();
         }
 
@@ -167,6 +150,7 @@ public class GameManager : MonoBehaviour
             if (arma == OpcionCombate.Espada) estadoAnimacion = "Morir_Espada";
             else if (arma == OpcionCombate.Baculo) estadoAnimacion = "Morir_Baculo";
             else if (arma == OpcionCombate.Escudo) estadoAnimacion = "Morir_Escudo";
+            else if (arma == OpcionCombate.Ninguna) estadoAnimacion = "Morir_Espada"; 
         }
         else if (accion == "Desenvaina")
         {
@@ -191,7 +175,7 @@ public class GameManager : MonoBehaviour
         else if (eleccionJ1 == eleccionJ2)
         {
             Debug.Log("⚡ ¡EMPATE!");
-            StartCoroutine(RutinaReiniciarTurno(1.5f));
+            StartCoroutine(RutinaReiniciarTurno(2.0f)); // Si empatan, espera 2s y reinicia el duelo
             return;
         }
         else
@@ -206,21 +190,36 @@ public class GameManager : MonoBehaviour
         {
             ReproducirAnimacion(animJ1, "Atacar", eleccionJ1);
             ReproducirAnimacion(animJ2, "Morir", eleccionJ2);
-            ReproducirSFX(sfxAtaque);
+            
+            ReproducirSFX(sfxAtaque); 
+            ReproducirSFX(sfxMuerte); 
+            
             victoriasRondaJ1++;
         }
         else if (ganadorTurno == 2)
         {
             ReproducirAnimacion(animJ2, "Atacar", eleccionJ2);
             ReproducirAnimacion(animJ1, "Morir", eleccionJ1);
-            ReproducirSFX(sfxAtaque);
+            
+            ReproducirSFX(sfxAtaque); 
+            ReproducirSFX(sfxMuerte); 
+            
             victoriasRondaJ2++;
         }
         else
         {
+            ReproducirAnimacion(animJ1, "Morir", eleccionJ1);
+            ReproducirAnimacion(animJ2, "Morir", eleccionJ2);
             ReproducirSFX(sfxMuerte);
         }
 
+        // Le damos 3 segundos a la cámara para ver la muerte antes de evaluar
+        StartCoroutine(RutinaFinDeTurno(3.0f));
+    }
+
+    private IEnumerator RutinaFinDeTurno(float tiempoEspera)
+    {
+        yield return new WaitForSeconds(tiempoEspera);
         EvaluarRondaYMana();
     }
 
@@ -241,7 +240,7 @@ public class GameManager : MonoBehaviour
 
         if (manaJ1 >= metaManaPartida) EjecutarVictoriaGlobal(1);
         else if (manaJ2 >= metaManaPartida) EjecutarVictoriaGlobal(2);
-        else PrepararEsperarBoton();
+        else StartCoroutine(RutinaIniciarNuevoTurno(1.0f)); // Pequeña pausa de 1 segundo antes de reanudar la acción
     }
 
     private void RestablecerAmbosAIdle()
@@ -265,7 +264,6 @@ public class GameManager : MonoBehaviour
         esperandoInput = false;
 
         if (musicaTurnoSource != null) musicaTurnoSource.Stop();
-        if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(false);
         if (panelVictoriaUI != null) panelVictoriaUI.SetActive(true);
 
         if (textoGanadorUI != null)
@@ -274,6 +272,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // Puedes llamar a esta función desde el botón "Reiniciar" de tu Pantalla de Victoria
     public void ReiniciarPartidaCompleta()
     {
         manaJ1 = 0;
@@ -286,7 +285,8 @@ public class GameManager : MonoBehaviour
 
         ActualizarUI();
         RestablecerAmbosAIdle();
-        PrepararEsperarBoton();
+        
+        StartCoroutine(RutinaIniciarNuevoTurno(1.5f));
     }
 
     private void ReiniciarContadoresRonda()
@@ -306,7 +306,12 @@ public class GameManager : MonoBehaviour
     private IEnumerator RutinaReiniciarTurno(float tiempoEspera)
     {
         yield return new WaitForSeconds(tiempoEspera);
-        RestablecerAmbosAIdle();
-        PrepararEsperarBoton();
+        IniciarNuevoTurno();
+    }
+
+    private IEnumerator RutinaIniciarNuevoTurno(float tiempoEspera)
+    {
+        yield return new WaitForSeconds(tiempoEspera);
+        IniciarNuevoTurno();
     }
 }
