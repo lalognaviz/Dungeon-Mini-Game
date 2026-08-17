@@ -15,13 +15,18 @@ public class GameManager : MonoBehaviour
     public Animator animJ1;
     public Animator animJ2;
 
-    [Header("Placeholders de Armas (0:Espada, 1:Báculo, 2:Escudo)")]
-    public GameObject[] armasJ1; 
-    public GameObject[] armasJ2; 
+    [Header("Audio - Sistema de Turno y SFX")]
+    public AudioSource musicaTurnoSource;
+    public AudioSource sfxSource;
+    public AudioClip musicaTurnoClip;
+    public AudioClip sfxAtaque;
+    public AudioClip sfxMuerte;
+    public AudioClip sfxBoton;
 
-    [Header("Efectos de Partículas (VFX)")]
-    public ParticleSystem particulasMuertePrefab;
-    public ParticleSystem particulasRespawnPrefab;
+    [Header("Configuración de Duración Dinámica")]
+    public float duracionMinimaTurno = 4f;
+    public float duracionMaximaTurno = 8f;
+    private float tiempoRestanteTurno;
 
     [Header("Elecciones de Jugadores")]
     public OpcionCombate eleccionJ1 = OpcionCombate.Ninguna;
@@ -30,8 +35,6 @@ public class GameManager : MonoBehaviour
     [Header("Estado del Turno")]
     public bool esperandoInput = false;
     public bool juegoTerminado = false;
-    public float duracionMaxTurno = 4f;
-    private float tiempoRestante;
 
     [Header("Progreso de Partida")]
     public int victoriasRondaJ1 = 0;
@@ -43,7 +46,6 @@ public class GameManager : MonoBehaviour
     public int metaManaPartida = 3;
 
     [Header("UI - HUD de Juego")]
-    public TextMeshProUGUI textoTemporizador;
     public TextMeshProUGUI textoRondaJ1;
     public TextMeshProUGUI textoRondaJ2;
     public TextMeshProUGUI textoManaJ1;
@@ -56,9 +58,9 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        OcultarTodasLasArmas();
         ActualizarUI();
         if (panelVictoriaUI != null) panelVictoriaUI.SetActive(false);
+        RestablecerAmbosAIdle();
         PrepararEsperarBoton();
     }
 
@@ -66,13 +68,7 @@ public class GameManager : MonoBehaviour
     {
         if (!esperandoInput || juegoTerminado) return;
 
-        tiempoRestante -= Time.deltaTime;
-
-        if (textoTemporizador != null)
-        {
-            int segundos = Mathf.CeilToInt(Mathf.Max(0, tiempoRestante));
-            textoTemporizador.text = segundos.ToString();
-        }
+        tiempoRestanteTurno -= Time.deltaTime;
 
         if (Keyboard.current != null)
         {
@@ -85,10 +81,11 @@ public class GameManager : MonoBehaviour
             else if (Keyboard.current.lKey.wasPressedThisFrame) RegistrarEleccion(2, OpcionCombate.Escudo);
         }
 
-        if (tiempoRestante <= 0f)
+        if (tiempoRestanteTurno <= 0f)
         {
             esperandoInput = false;
-            Debug.Log("⏱️ ¡TIEMPO AGOTADO! Revelando armas...");
+            if (musicaTurnoSource != null) musicaTurnoSource.Stop();
+            Debug.Log("⏱️ ¡Fin del turno aleatorio! Revelando combate...");
             ResolverTurno();
         }
     }
@@ -96,6 +93,7 @@ public class GameManager : MonoBehaviour
     public void PresionarBotonIniciarTurno()
     {
         if (juegoTerminado) return;
+        ReproducirSFX(sfxBoton);
         if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(false);
         IniciarNuevoTurno();
     }
@@ -108,49 +106,51 @@ public class GameManager : MonoBehaviour
         eleccionJ1 = OpcionCombate.Ninguna;
         eleccionJ2 = OpcionCombate.Ninguna;
 
-        if (textoTemporizador != null) textoTemporizador.text = Mathf.CeilToInt(duracionMaxTurno).ToString();
         if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(true);
     }
 
     private void IniciarNuevoTurno()
     {
-        RestablecerPersonajesActivos();
-        OcultarTodasLasArmas(); 
+        RestablecerAmbosAIdle();
 
         eleccionJ1 = OpcionCombate.Ninguna;
         eleccionJ2 = OpcionCombate.Ninguna;
-        tiempoRestante = duracionMaxTurno;
+
+        float duracionElegida = Random.Range(duracionMinimaTurno, duracionMaximaTurno);
+        tiempoRestanteTurno = duracionElegida;
         esperandoInput = true;
+
+        if (musicaTurnoSource != null && musicaTurnoClip != null)
+        {
+            musicaTurnoSource.clip = musicaTurnoClip;
+            musicaTurnoSource.loop = false;
+            musicaTurnoSource.pitch = 1f; // Aseguramos que el audio siempre suene a velocidad normal
+            musicaTurnoSource.Play();
+        }
+
+        Debug.Log($"--- ⚔️ TURNO EN CURSO | Duración: {duracionElegida:F2}s ⚔️ ---");
     }
 
     private void RegistrarEleccion(int jugador, OpcionCombate eleccion)
     {
-        if (jugador == 1) eleccionJ1 = eleccion;
-        else if (jugador == 2) eleccionJ2 = eleccion;
-    }
-
-    private void OcultarTodasLasArmas()
-    {
-        foreach (var arma in armasJ1) if (arma != null) arma.SetActive(false);
-        foreach (var arma in armasJ2) if (arma != null) arma.SetActive(false);
-    }
-
-    private void MostrarArma(int jugador, OpcionCombate eleccion)
-    {
-        GameObject[] arrayArmas = (jugador == 1) ? armasJ1 : armasJ2;
-        int indice = -1;
-
-        if (eleccion == OpcionCombate.Espada) indice = 0;
-        else if (eleccion == OpcionCombate.Baculo) indice = 1;
-        else if (eleccion == OpcionCombate.Escudo) indice = 2;
-
-        if (indice >= 0 && indice < arrayArmas.Length && arrayArmas[indice] != null)
+        if (jugador == 1)
         {
-            arrayArmas[indice].SetActive(true);
+            if (eleccionJ1 != eleccion)
+            {
+                eleccionJ1 = eleccion;
+                ReproducirAnimacion(animJ1, "Desenvaina", eleccion);
+            }
+        }
+        else if (jugador == 2)
+        {
+            if (eleccionJ2 != eleccion)
+            {
+                eleccionJ2 = eleccion;
+                ReproducirAnimacion(animJ2, "Desenvaina", eleccion);
+            }
         }
     }
 
-    // --- NUEVO MÉTODO PARA GESTIONAR LAS ANIMACIONES ESPECÍFICAS ---
     private void ReproducirAnimacion(Animator anim, string accion, OpcionCombate arma)
     {
         if (anim == null) return;
@@ -168,18 +168,21 @@ public class GameManager : MonoBehaviour
             else if (arma == OpcionCombate.Baculo) estadoAnimacion = "Morir_Baculo";
             else if (arma == OpcionCombate.Escudo) estadoAnimacion = "Morir_Escudo";
         }
+        else if (accion == "Desenvaina")
+        {
+            if (arma == OpcionCombate.Espada) estadoAnimacion = "Desenvaina_Espada";
+            else if (arma == OpcionCombate.Baculo) estadoAnimacion = "Desenvaina_Baculo";
+            else if (arma == OpcionCombate.Escudo) estadoAnimacion = "Desenvaina_Escudo";
+        }
 
         if (estadoAnimacion != "")
         {
-            anim.Play(estadoAnimacion);
+            anim.Play(estadoAnimacion, 0, 0f);
         }
     }
 
     private void ResolverTurno()
     {
-        MostrarArma(1, eleccionJ1);
-        MostrarArma(2, eleccionJ2);
-
         int ganadorTurno = 0; 
 
         if (eleccionJ1 == OpcionCombate.Ninguna && eleccionJ2 == OpcionCombate.Ninguna) ganadorTurno = 0;
@@ -187,7 +190,7 @@ public class GameManager : MonoBehaviour
         else if (eleccionJ2 == OpcionCombate.Ninguna) ganadorTurno = 1;
         else if (eleccionJ1 == eleccionJ2)
         {
-            Debug.Log($"⚡ ¡EMPATE!");
+            Debug.Log("⚡ ¡EMPATE!");
             StartCoroutine(RutinaReiniciarTurno(1.5f));
             return;
         }
@@ -199,31 +202,24 @@ public class GameManager : MonoBehaviour
             ganadorTurno = ganaJ1 ? 1 : 2;
         }
 
-        // --- ACTUALIZADO PARA USAR LAS ANIMACIONES ESPECÍFICAS ---
         if (ganadorTurno == 1)
         {
             ReproducirAnimacion(animJ1, "Atacar", eleccionJ1);
             ReproducirAnimacion(animJ2, "Morir", eleccionJ2);
+            ReproducirSFX(sfxAtaque);
             victoriasRondaJ1++;
         }
         else if (ganadorTurno == 2)
         {
             ReproducirAnimacion(animJ2, "Atacar", eleccionJ2);
             ReproducirAnimacion(animJ1, "Morir", eleccionJ1);
+            ReproducirSFX(sfxAtaque);
             victoriasRondaJ2++;
         }
-
-        // Aumentamos el retraso a 2.5f para dar tiempo a que termine la animación antes de que desaparezca
-        StartCoroutine(RutinaDesactivarPerdedor(2.5f, ganadorTurno)); 
-    }
-
-    private IEnumerator RutinaDesactivarPerdedor(float retraso, int ganadorTurno)
-    {
-        yield return new WaitForSeconds(retraso);
-
-        if (ganadorTurno == 1) DesactivarPerdedor(2);
-        else if (ganadorTurno == 2) DesactivarPerdedor(1);
-        else if (ganadorTurno == 0) DesactivarPerdedor(0);
+        else
+        {
+            ReproducirSFX(sfxMuerte);
+        }
 
         EvaluarRondaYMana();
     }
@@ -245,52 +241,21 @@ public class GameManager : MonoBehaviour
 
         if (manaJ1 >= metaManaPartida) EjecutarVictoriaGlobal(1);
         else if (manaJ2 >= metaManaPartida) EjecutarVictoriaGlobal(2);
-        else StartCoroutine(RutinaRespawnYNuevoTurno(2f));
+        else PrepararEsperarBoton();
     }
 
-    private void DesactivarPerdedor(int numeroPerdedor)
+    private void RestablecerAmbosAIdle()
     {
-        if (numeroPerdedor == 1 && jugador1GO != null)
-        {
-            GenerarEfectoVFX(particulasMuertePrefab, jugador1GO.transform.position);
-            jugador1GO.SetActive(false);
-        }
-        else if (numeroPerdedor == 2 && jugador2GO != null)
-        {
-            GenerarEfectoVFX(particulasMuertePrefab, jugador2GO.transform.position);
-            jugador2GO.SetActive(false);
-        }
-        else if (numeroPerdedor == 0)
-        {
-            if (jugador1GO != null) { GenerarEfectoVFX(particulasMuertePrefab, jugador1GO.transform.position); jugador1GO.SetActive(false); }
-            if (jugador2GO != null) { GenerarEfectoVFX(particulasMuertePrefab, jugador2GO.transform.position); jugador2GO.SetActive(false); }
-        }
+        if (animJ1 != null) animJ1.Play("Idle", 0, 0f);
+        if (animJ2 != null) animJ2.Play("Idle", 0, 0f);
     }
 
-    private void RestablecerPersonajesActivos()
+    private void ReproducirSFX(AudioClip clip)
     {
-        if (jugador1GO != null && !jugador1GO.activeSelf)
+        if (sfxSource != null && clip != null)
         {
-            jugador1GO.SetActive(true);
-            if (animJ1 != null) animJ1.Play("Idle"); // Fuerza al personaje a volver a la pose base
-            GenerarEfectoVFX(particulasRespawnPrefab, jugador1GO.transform.position);
-        }
-
-        if (jugador2GO != null && !jugador2GO.activeSelf)
-        {
-            jugador2GO.SetActive(true);
-            if (animJ2 != null) animJ2.Play("Idle"); // Fuerza al personaje a volver a la pose base
-            GenerarEfectoVFX(particulasRespawnPrefab, jugador2GO.transform.position);
-        }
-    }
-
-    private void GenerarEfectoVFX(ParticleSystem efectoPrefab, Vector3 posicion)
-    {
-        if (efectoPrefab != null)
-        {
-            ParticleSystem vfx = Instantiate(efectoPrefab, posicion, Quaternion.identity);
-            vfx.Play();
-            Destroy(vfx.gameObject, vfx.main.duration + vfx.main.startLifetime.constantMax);
+            sfxSource.pitch = 1.0f;
+            sfxSource.PlayOneShot(clip);
         }
     }
 
@@ -299,9 +264,14 @@ public class GameManager : MonoBehaviour
         juegoTerminado = true;
         esperandoInput = false;
 
+        if (musicaTurnoSource != null) musicaTurnoSource.Stop();
         if (botonIniciarTurnoUI != null) botonIniciarTurnoUI.SetActive(false);
         if (panelVictoriaUI != null) panelVictoriaUI.SetActive(true);
-        if (textoGanadorUI != null) textoGanadorUI.text = $"¡FATALITY!\n¡JUGADOR {jugadorGanador} ES LIBERADO!";
+
+        if (textoGanadorUI != null)
+        {
+            textoGanadorUI.text = $"¡FATALITY!\n¡JUGADOR {jugadorGanador} ES LIBERADO!";
+        }
     }
 
     public void ReiniciarPartidaCompleta()
@@ -315,6 +285,7 @@ public class GameManager : MonoBehaviour
         if (panelVictoriaUI != null) panelVictoriaUI.SetActive(false);
 
         ActualizarUI();
+        RestablecerAmbosAIdle();
         PrepararEsperarBoton();
     }
 
@@ -335,12 +306,7 @@ public class GameManager : MonoBehaviour
     private IEnumerator RutinaReiniciarTurno(float tiempoEspera)
     {
         yield return new WaitForSeconds(tiempoEspera);
-        PrepararEsperarBoton();
-    }
-
-    private IEnumerator RutinaRespawnYNuevoTurno(float tiempoEspera)
-    {
-        yield return new WaitForSeconds(tiempoEspera);
+        RestablecerAmbosAIdle();
         PrepararEsperarBoton();
     }
 }
