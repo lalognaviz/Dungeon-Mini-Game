@@ -11,7 +11,7 @@ public class GameManager : MonoBehaviour
     public GameObject jugador1GO;
     public GameObject jugador2GO;
 
-    [Header("Animadores (Opcional para PoC)")]
+    [Header("Animadores")]
     public Animator animJ1;
     public Animator animJ2;
 
@@ -104,8 +104,6 @@ public class GameManager : MonoBehaviour
     {
         if (juegoTerminado) return;
 
-        // Se eliminó de aquí la función RestablecerPersonajesActivos()
-        
         esperandoInput = false;
         eleccionJ1 = OpcionCombate.Ninguna;
         eleccionJ2 = OpcionCombate.Ninguna;
@@ -116,9 +114,7 @@ public class GameManager : MonoBehaviour
 
     private void IniciarNuevoTurno()
     {
-        // AGREGADO: El personaje revive y lanza las partículas exactamente al presionar el botón.
         RestablecerPersonajesActivos();
-
         OcultarTodasLasArmas(); 
 
         eleccionJ1 = OpcionCombate.Ninguna;
@@ -154,6 +150,31 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // --- NUEVO MÉTODO PARA GESTIONAR LAS ANIMACIONES ESPECÍFICAS ---
+    private void ReproducirAnimacion(Animator anim, string accion, OpcionCombate arma)
+    {
+        if (anim == null) return;
+        string estadoAnimacion = "";
+
+        if (accion == "Atacar")
+        {
+            if (arma == OpcionCombate.Espada) estadoAnimacion = "Ataque_Espada";
+            else if (arma == OpcionCombate.Baculo) estadoAnimacion = "Ataque_Baculo";
+            else if (arma == OpcionCombate.Escudo) estadoAnimacion = "Ataque_Escudo";
+        }
+        else if (accion == "Morir")
+        {
+            if (arma == OpcionCombate.Espada) estadoAnimacion = "Morir_Espada";
+            else if (arma == OpcionCombate.Baculo) estadoAnimacion = "Morir_Baculo";
+            else if (arma == OpcionCombate.Escudo) estadoAnimacion = "Morir_Escudo";
+        }
+
+        if (estadoAnimacion != "")
+        {
+            anim.Play(estadoAnimacion);
+        }
+    }
+
     private void ResolverTurno()
     {
         MostrarArma(1, eleccionJ1);
@@ -178,20 +199,22 @@ public class GameManager : MonoBehaviour
             ganadorTurno = ganaJ1 ? 1 : 2;
         }
 
+        // --- ACTUALIZADO PARA USAR LAS ANIMACIONES ESPECÍFICAS ---
         if (ganadorTurno == 1)
         {
-            if (animJ1 != null) animJ1.SetTrigger("Atacar");
-            if (animJ2 != null) animJ2.SetTrigger("Morir");
+            ReproducirAnimacion(animJ1, "Atacar", eleccionJ1);
+            ReproducirAnimacion(animJ2, "Morir", eleccionJ2);
             victoriasRondaJ1++;
         }
         else if (ganadorTurno == 2)
         {
-            if (animJ2 != null) animJ2.SetTrigger("Atacar");
-            if (animJ1 != null) animJ1.SetTrigger("Morir");
+            ReproducirAnimacion(animJ2, "Atacar", eleccionJ2);
+            ReproducirAnimacion(animJ1, "Morir", eleccionJ1);
             victoriasRondaJ2++;
         }
 
-        StartCoroutine(RutinaDesactivarPerdedor(1.0f, ganadorTurno));
+        // Aumentamos el retraso a 2.5f para dar tiempo a que termine la animación antes de que desaparezca
+        StartCoroutine(RutinaDesactivarPerdedor(2.5f, ganadorTurno)); 
     }
 
     private IEnumerator RutinaDesactivarPerdedor(float retraso, int ganadorTurno)
@@ -249,14 +272,14 @@ public class GameManager : MonoBehaviour
         if (jugador1GO != null && !jugador1GO.activeSelf)
         {
             jugador1GO.SetActive(true);
-            if (animJ1 != null) animJ1.SetTrigger("Renacer");
+            if (animJ1 != null) animJ1.Play("Idle"); // Fuerza al personaje a volver a la pose base
             GenerarEfectoVFX(particulasRespawnPrefab, jugador1GO.transform.position);
         }
 
         if (jugador2GO != null && !jugador2GO.activeSelf)
         {
             jugador2GO.SetActive(true);
-            if (animJ2 != null) animJ2.SetTrigger("Renacer");
+            if (animJ2 != null) animJ2.Play("Idle"); // Fuerza al personaje a volver a la pose base
             GenerarEfectoVFX(particulasRespawnPrefab, jugador2GO.transform.position);
         }
     }
